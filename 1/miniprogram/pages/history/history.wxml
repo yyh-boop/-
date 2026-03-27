@@ -1,0 +1,76 @@
+<view class="page-wrap">
+
+  <!-- 空状态 -->
+  <view class="empty-wrap" wx:if="{{sessions.length === 0}}">
+    <view class="empty-icon">📭</view>
+    <view class="empty-text">暂无历史记录</view>
+    <view class="empty-sub">完成一次检测后将自动保存</view>
+  </view>
+
+  <!-- 有记录 -->
+  <view wx:if="{{sessions.length > 0}}">
+
+    <!-- 工具栏 -->
+    <view class="toolbar">
+      <text class="total-text">共 {{sessions.length}} 条记录</text>
+      <view class="clear-btn" bindtap="clearAll">清空全部</view>
+    </view>
+
+    <!-- 记录列表 -->
+    <view class="session-list">
+      <view class="session-card" wx:for="{{sessions}}" wx:key="id">
+
+        <!-- 标题行（点击折叠/展开） -->
+        <view class="session-header" bindtap="toggleSession" data-id="{{item.id}}">
+          <view class="session-header-left">
+            <view class="session-time">{{item.time}}</view>
+            <view class="session-summary">{{item.items.length}} 张图片</view>
+          </view>
+          <view class="session-header-right">
+            <view class="del-btn" catchtap="deleteSession" data-id="{{item.id}}">删除</view>
+            <view class="arrow {{expandedIds[item.id] ? 'arrow-up' : ''}}">▼</view>
+          </view>
+        </view>
+
+        <!-- 展开内容 -->
+        <view class="session-body" wx:if="{{expandedIds[item.id]}}">
+          <view class="item-card" wx:for="{{item.items}}" wx:for-item="img" wx:key="name">
+
+            <view class="item-top">
+              <view class="item-name">{{img.name}}</view>
+              <view class="tag tag-ai"      wx:if="{{img.label === 'AI生成'}}">AI生成</view>
+              <view class="tag tag-real"    wx:elif="{{img.label === '真实图片'}}">真实图片</view>
+              <view class="tag tag-error"   wx:elif="{{img.error}}">失败</view>
+              <view class="tag tag-pending" wx:else>未知</view>
+            </view>
+
+            <view wx:if="{{!img.error}}">
+              <view class="bar-group">
+                <view class="bar-row">
+                  <text class="bar-label">AI 生成概率</text>
+                  <text class="bar-val">{{img.aiPercent}}%</text>
+                </view>
+                <view class="bar-track">
+                  <view class="bar-fill bar-fill-ai" style="width:{{img.aiPercent}}%"></view>
+                </view>
+              </view>
+              <view class="bar-group">
+                <view class="bar-row">
+                  <text class="bar-label">真实图片概率</text>
+                  <text class="bar-val">{{img.realPercent}}%</text>
+                </view>
+                <view class="bar-track">
+                  <view class="bar-fill bar-fill-real" style="width:{{img.realPercent}}%"></view>
+                </view>
+              </view>
+            </view>
+
+            <view class="err-txt" wx:if="{{img.error}}">⚠ {{img.error}}</view>
+          </view>
+        </view>
+
+      </view>
+    </view>
+  </view>
+
+</view>

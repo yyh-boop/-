@@ -1,0 +1,118 @@
+<view class="page-wrap">
+
+  <!-- 标题 -->
+  <view class="card hero">
+    <view class="hero-title">AI 图片概率检测</view>
+    <view class="hero-sub">支持批量上传，同时检测多张图片</view>
+  </view>
+
+  <!-- 操作区 -->
+  <view class="card main">
+
+    <!-- 图片预览网格 -->
+    <view class="img-grid" wx:if="{{imageList.length > 0}}">
+      <view class="img-grid-item" wx:for="{{imageList}}" wx:key="index">
+        <image class="grid-img" src="{{item.path}}" mode="aspectFill"></image>
+        <!-- 删除按钮 -->
+        <view class="grid-del" bindtap="removeImage" data-idx="{{index}}">×</view>
+        <!-- 状态标签 -->
+        <view class="grid-tag-wrap">
+          <view wx:if="{{item.status === 'pending'}}" class="grid-tag tag-pending">待检测</view>
+          <view wx:if="{{item.status === 'loading'}}" class="grid-tag tag-loading">检测中</view>
+          <view wx:if="{{item.status === 'done'}}"    class="grid-tag {{item.labelClass}}">{{item.label}}</view>
+          <view wx:if="{{item.status === 'error'}}"   class="grid-tag tag-error">失败</view>
+        </view>
+      </view>
+
+      <!-- 追加按钮 -->
+      <view class="img-grid-add" bindtap="chooseImage" wx:if="{{imageList.length < 9}}">
+        <view class="add-plus">+</view>
+      </view>
+    </view>
+
+    <!-- 空状态上传区 -->
+    <view class="upload-box" bindtap="chooseImage" wx:if="{{imageList.length === 0}}">
+      <view class="upload-plus">+</view>
+      <view class="upload-hint">点击选择图片（可多选）</view>
+      <view class="upload-hint2">最多9张</view>
+    </view>
+
+    <!-- 进度提示 -->
+    <view class="progress-wrap" wx:if="{{loading}}">
+      <view class="progress-label">检测中 {{doneCount}} / {{totalCount}}</view>
+      <view class="progress-track">
+        <view class="progress-fill" style="width:{{totalCount > 0 ? doneCount * 100 / totalCount : 0}}%"></view>
+      </view>
+    </view>
+
+    <!-- 按钮组 -->
+    <view class="btn-row">
+      <button class="detect-btn" bindtap="analyzeAll" loading="{{loading}}" disabled="{{loading}}">{{btnText}}</button>
+      <button class="clear-btn" bindtap="clearAll">清空</button>
+    </view>
+
+    <view class="line"></view>
+
+    <!-- 检测结果列表 -->
+    <view wx:if="{{imageList.length > 0}}">
+      <view class="result-head">检测结果（共 {{imageList.length}} 张）</view>
+
+      <view class="result-list">
+        <view class="result-item {{item.status === 'done' ? item.labelClass + '-border' : ''}}"
+              wx:for="{{imageList}}" wx:key="index">
+
+          <!-- 缩略图 -->
+          <image class="result-thumb" src="{{item.path}}" mode="aspectFill"></image>
+
+          <!-- 右侧内容 -->
+          <view class="result-content">
+            <view class="result-item-top">
+              <view class="result-name">图片 {{index + 1}}</view>
+              <view wx:if="{{item.status === 'pending'}}" class="tag tag-pending">待检测</view>
+              <view wx:if="{{item.status === 'loading'}}" class="tag tag-loading">检测中...</view>
+              <view wx:if="{{item.status === 'done'}}"    class="tag {{item.labelClass}}">{{item.label}}</view>
+              <view wx:if="{{item.status === 'error'}}"   class="tag tag-error">失败</view>
+            </view>
+
+            <!-- 概率条（仅检测完成后显示） -->
+            <view wx:if="{{item.status === 'done'}}">
+              <view class="bar-group">
+                <view class="bar-row">
+                  <text class="bar-label">AI 生成概率</text>
+                  <text class="bar-val">{{item.aiText}}</text>
+                </view>
+                <view class="bar-track">
+                  <view class="bar-fill bar-fill-ai" style="width:{{item.aiPercent}}%"></view>
+                </view>
+              </view>
+              <view class="bar-group">
+                <view class="bar-row">
+                  <text class="bar-label">真实图片概率</text>
+                  <text class="bar-val">{{item.realText}}</text>
+                </view>
+                <view class="bar-track">
+                  <view class="bar-fill bar-fill-real" style="width:{{item.realPercent}}%"></view>
+                </view>
+              </view>
+            </view>
+
+            <!-- 错误信息 -->
+            <view class="err-txt" wx:if="{{item.status === 'error'}}">{{item.errMsg}}</view>
+          </view>
+
+        </view>
+      </view>
+    </view>
+
+  </view>
+
+  <!-- 查看历史入口 -->
+  <navigator url="/pages/history/history" class="history-entry">
+    <text class="history-entry-icon">📋</text>
+    <text class="history-entry-text">查看历史记录</text>
+    <text class="history-entry-arrow">›</text>
+  </navigator>
+
+  <view class="foot">基于 DIRE 深度扩散重建误差</view>
+
+</view>

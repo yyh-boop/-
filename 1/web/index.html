@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 图片概率检测</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #081225 0%, #0a1a38 100%);
+      font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      color: #e0e8ff;
+      padding: 30px 16px 50px;
+    }
+    .container { width: 100%; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    /* 标题 */
+    .hero { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 28px 24px; text-align: center; }
+    .hero-title { font-size: 26px; font-weight: 700; color: #fff; letter-spacing: 2px; }
+    .hero-sub   { margin-top: 8px; font-size: 14px; color: #7a9cc8; }
+
+    /* 标签页切换 */
+    .tabs {
+      display: flex; gap: 0;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px; overflow: hidden;
+    }
+    .tab-btn {
+      flex: 1; padding: 12px; border: none; background: transparent;
+      color: #5a7ca8; font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; letter-spacing: 1px;
+    }
+    .tab-btn.active { background: rgba(26,111,255,0.2); color: #6ab4ff; border-bottom: 2px solid #4a9eff; }
+    .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.05); color: #aac4ee; }
+
+    /* 页面区域 */
+    .tab-panel { display: none; flex-direction: column; gap: 20px; }
+    .tab-panel.active { display: flex; }
+
+    /* 操作卡片 */
+    .action-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* 上传区 */
+    .upload-box {
+      border: 2px dashed rgba(100,160,255,0.4); border-radius: 12px; padding: 36px 20px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s; background: rgba(100,160,255,0.03);
+    }
+    .upload-box:hover { border-color: #4a9eff; background: rgba(74,158,255,0.07); }
+    .upload-plus  { font-size: 48px; color: #4a9eff; line-height: 1; }
+    .upload-hint  { margin-top: 10px; font-size: 14px; color: #7a9cc8; }
+    .upload-hint2 { margin-top: 4px; font-size: 12px; color: #3a5a88; }
+    input[type="file"] { display: none; }
+
+    /* 进度 */
+    .progress-bar-wrap { display: none; flex-direction: column; gap: 6px; }
+    .progress-label { font-size: 13px; color: #7a9cc8; }
+    .progress-track { height: 6px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; }
+    .progress-fill  { height: 100%; background: linear-gradient(90deg,#1a6fff,#0fa0e0); border-radius: 999px; transition: width 0.4s ease; width: 0%; }
+
+    /* 按钮组 */
+    .btn-row { display: flex; gap: 12px; }
+    .detect-btn {
+      flex: 1; background: linear-gradient(90deg,#1a6fff,#0fa0e0); color: #fff; border: none;
+      border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity .2s, transform .1s;
+    }
+    .detect-btn:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+    .detect-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .clear-btn {
+      background: rgba(255,255,255,0.06); color: #7a9cc8; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 13px 20px; font-size: 15px; cursor: pointer; transition: all .2s;
+    }
+    .clear-btn:hover { background: rgba(255,255,255,0.1); color: #e0e8ff; }
+
+    /* 结果网格 */
+    .result-section { display: none; flex-direction: column; gap: 14px; }
+    .result-title   { font-size: 15px; font-weight: 600; color: #aac4ee; }
+    .result-grid    { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 16px; }
+
+    .result-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; overflow: hidden; transition: border-color .3s; }
+    .result-card.card-ai   { border-color: rgba(255,107,107,.4); }
+    .result-card.card-real { border-color: rgba(76,217,138,.4); }
+
+    .card-img-wrap { position: relative; height: 180px; background: #000; }
+    .card-img-wrap img { width: 100%; height: 100%; object-fit: contain; }
+    .card-status-overlay { position: absolute; top: 8px; right: 8px; }
+
+    .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .tag-pending { background: rgba(255,255,255,0.15); color: #aac4ee; }
+    .tag-ai      { background: rgba(255,80,80,.25); color: #ff6b6b; border: 1px solid #ff6b6b55; }
+    .tag-real    { background: rgba(60,200,120,.25); color: #4cd98a; border: 1px solid #4cd98a55; }
+    .tag-loading { background: rgba(26,111,255,.2); color: #6ab4ff; border: 1px solid #6ab4ff44; }
+    .tag-error   { background: rgba(255,80,80,.15); color: #ff8a8a; border: 1px solid #ff4e4e44; }
+
+    .card-body { padding: 14px; }
+    .card-filename { font-size: 12px; color: #5a7ca8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 10px; }
+    .mini-bar-group { margin-bottom: 8px; }
+    .mini-bar-row   { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+    .mini-bar-label { color: #5a7ca8; }
+    .mini-bar-val   { color: #c0d8f0; font-weight: 600; }
+    .mini-bar-track { height: 5px; background: rgba(255,255,255,0.07); border-radius: 999px; overflow: hidden; }
+    .mini-bar-fill  { height: 100%; border-radius: 999px; transition: width .6s ease; width: 0%; }
+    .mini-bar-fill-ai   { background: linear-gradient(90deg,#ff4e4e,#ff9a3c); }
+    .mini-bar-fill-real { background: linear-gradient(90deg,#1bdb72,#00c8a0); }
+    .card-err { font-size: 11px; color: #ff8a8a; margin-top: 6px; word-break: break-all; }
+
+    /* 加载动画 */
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.25); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 5px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== 历史记录 ===== */
+    .history-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px; padding: 14px 18px;
+    }
+    .history-count { font-size: 14px; color: #7a9cc8; }
+    .danger-btn {
+      background: rgba(255,80,80,.12); color: #ff8a8a;
+      border: 1px solid rgba(255,80,80,.25); border-radius: 8px;
+      padding: 7px 16px; font-size: 13px; cursor: pointer; transition: all .2s;
+    }
+    .danger-btn:hover { background: rgba(255,80,80,.22); }
+
+    .history-empty {
+      text-align: center; padding: 60px 20px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px; color: #3a5a88; font-size: 14px;
+    }
+    .history-empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+    .history-list { display: flex; flex-direction: column; gap: 16px; }
+
+    .history-session {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 14px; overflow: hidden;
+    }
+    .history-session-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.06); cursor: pointer;
+    }
+    .history-session-header:hover { background: rgba(255,255,255,0.07); }
+    .history-session-time { font-size: 13px; color: #6ab4ff; font-weight: 600; }
+    .history-session-summary { font-size: 12px; color: #5a7ca8; }
+    .history-session-del {
+      background: rgba(255,80,80,.12); color: #ff8a8a;
+      border: 1px solid rgba(255,80,80,.2); border-radius: 6px;
+      padding: 4px 10px; font-size: 11px; cursor: pointer;
+    }
+    .history-session-del:hover { background: rgba(255,80,80,.25); }
+
+    .history-session-body { padding: 14px 16px; }
+    .history-img-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 12px; }
+
+    .history-img-card {
+      background: rgba(255,255,255,0.03); border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08); padding: 10px;
+    }
+    .history-img-name { font-size: 11px; color: #5a7ca8; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-tag-row  { margin-bottom: 8px; }
+
+    /* 折叠 */
+    .session-toggle { color: #5a7ca8; font-size: 14px; transition: transform .2s; }
+    .session-toggle.open { transform: rotate(180deg); }
+    .session-body-wrap { overflow: hidden; max-height: 0; transition: max-height .3s ease; }
+    .session-body-wrap.open { max-height: 2000px; }
+
+    .foot { text-align: center; font-size: 12px; color: #3a5a88; margin-top: 4px; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 标题 -->
+  <div class="hero">
+    <div class="hero-title">AI 图片概率检测</div>
+    <div class="hero-sub">上传图片，判断是否为 AI 生成（支持批量同时检测）</div>
+  </div>
+
+  <!-- 标签页 -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('detect')">🔍 图片检测</button>
+    <button class="tab-btn"        onclick="switchTab('history')">📋 历史记录</button>
+  </div>
+
+  <!-- ===== 检测页 ===== -->
+  <div class="tab-panel active" id="panel-detect">
+
+    <div class="action-card">
+      <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-plus">+</div>
+        <div class="upload-hint">点击选择图片（可多选）</div>
+        <div class="upload-hint2">支持 JPG / PNG / WEBP 等，每次最多 20 张</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" multiple onchange="onFileChange(event)" />
+
+      <div class="progress-bar-wrap" id="progressWrap">
+        <div class="progress-label" id="progressLabel">检测中 0 / 0</div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="detect-btn" id="detectBtn" onclick="analyzeAll()">开始检测</button>
+        <button class="clear-btn"  onclick="clearAll()">清空</button>
+      </div>
+    </div>
+
+    <div class="result-section" id="resultSection">
+      <div class="result-title" id="resultTitle">检测结果</div>
+      <div class="result-grid"  id="resultGrid"></div>
+    </div>
+  </div>
+
+  <!-- ===== 历史记录页 ===== -->
+  <div class="tab-panel" id="panel-history">
+    <div class="history-toolbar">
+      <span class="history-count" id="historyCount">共 0 条记录</span>
+      <button class="danger-btn" onclick="clearHistory()">清空全部历史</button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+  <div class="foot">基于 DIRE 深度扩散重建误差</div>
+</div>
+
+<script>
+  const API_URL = '/api/predict';
+  const STORAGE_KEY = 'ai_detect_history';
+  const MAX_SESSIONS = 50;
+
+  let fileList = [];
+
+  /* ===== 标签页切换 ===== */
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', ['detect','history'][i] === name);
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'history') renderHistory();
+  }
+
+  /* ===== 选择文件 ===== */
+  function onFileChange(event) {
+    const files = Array.from(event.target.files);
+    if (!files.length) return;
+    files.forEach(f => {
+      if (fileList.length >= 20) return;
+      fileList.push({ file: f, objectURL: URL.createObjectURL(f) });
+    });
+    event.target.value = '';
+    renderCards('pending');
+    document.getElementById('resultSection').style.display = 'flex';
+  }
+
+  /* ===== 渲染检测结果卡片 ===== */
+  function renderCards(statusAll) {
+    const grid = document.getElementById('resultGrid');
+    grid.innerHTML = '';
+    fileList.forEach((item, idx) => {
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.id = 'card-' + idx;
+      card.innerHTML = cardInner(item.objectURL, item.file.name, statusAll, null);
+      grid.appendChild(card);
+    });
+    document.getElementById('resultTitle').textContent = `检测结果（共 ${fileList.length} 张）`;
+  }
+
+  function cardInner(src, name, status, data) {
+    let tagClass = 'tag-pending', tagText = '待检测';
+    if (status === 'loading') { tagClass = 'tag-loading'; tagText = '检测中...'; }
+    if (status === 'error')   { tagClass = 'tag-error';   tagText = '失败'; }
+    if (status === 'done' && data) {
+      const cls = data.predicted_label || '未知';
+      tagClass = cls === 'AI生成' ? 'tag-ai' : (cls === '真实图片' ? 'tag-real' : 'tag-pending');
+      tagText = cls;
+    }
+    const ai   = (data && status==='done') ? Math.round(data.ai_probability   * 100) : 0;
+    const real = (data && status==='done') ? Math.round(data.real_probability * 100) : 0;
+    const aiTx = (data && status==='done') ? (data.ai_probability   * 100).toFixed(2) + '%' : '--';
+    const reTx = (data && status==='done') ? (data.real_probability * 100).toFixed(2) + '%' : '--';
+    const err  = (data && data.error) ? `<div class="card-err">⚠ ${data.error}</div>` : '';
+    const bdr  = (status==='done' && data)
+      ? (data.predicted_label==='AI生成' ? ' card-ai' : ' card-real') : '';
+    return `<div style="all:unset" class="result-card${bdr}"></div>
+      <div class="card-img-wrap">
+        <img src="${src}" />
+        <div class="card-status-overlay"><span class="tag ${tagClass}">${tagText}</span></div>
+      </div>
+      <div class="card-body">
+        <div class="card-filename" title="${name}">${name}</div>
+        <div class="mini-bar-group">
+          <div class="mini-bar-row"><span class="mini-bar-label">AI 生成概率</span><span class="mini-bar-val">${aiTx}</span></div>
+          <div class="mini-bar-track"><div class="mini-bar-fill mini-bar-fill-ai" style="width:${ai}%"></div></div>
+        </div>
+        <div class="mini-bar-group">
+          <div class="mini-bar-row"><span class="mini-bar-label">真实图片概率</span><span class="mini-bar-val">${reTx}</span></div>
+          <div class="mini-bar-track"><div class="mini-bar-fill mini-bar-fill-real" style="width:${real}%"></div></div>
+        </div>
+        ${err}
+      </div>`;
+  }
+
+  function updateCard(idx, status, data) {
+    const card = document.getElementById('card-' + idx);
+    if (!card) return;
+    const item = fileList[idx];
+    card.className = 'result-card' +
+      (status==='done' && data ? (data.predicted_label==='AI生成' ? ' card-ai' : ' card-real') : '');
+    card.innerHTML = cardInner(item.objectURL, item.file.name, status, data);
+  }
+
+  /* ===== 并行检测 ===== */
+  async function analyzeAll() {
+    if (!fileList.length) { alert('请先选择图片'); return; }
+    const btn = document.getElementById('detectBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>检测中...';
+
+    const total = fileList.length;
+    let done = 0;
+    const progressWrap  = document.getElementById('progressWrap');
+    const progressFill  = document.getElementById('progressFill');
+    const progressLabel = document.getElementById('progressLabel');
+    progressWrap.style.display = 'flex';
+    progressFill.style.width = '0%';
+    progressLabel.textContent = `检测中 0 / ${total}`;
+
+    fileList.forEach((_, idx) => updateCard(idx, 'loading', null));
+
+    const sessionItems = [];
+
+    const tasks = fileList.map((item, idx) => {
+      const fd = new FormData();
+      fd.append('image', item.file);
+      return fetch(API_URL, { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+          updateCard(idx, 'done', data);
+          sessionItems[idx] = {
+            name:       item.file.name,
+            label:      data.predicted_label || '未知',
+            aiPercent:  Math.round((data.ai_probability   || 0) * 100),
+            realPercent:Math.round((data.real_probability || 0) * 100),
+            error: data.error || null
+          };
+        })
+        .catch(err => {
+          updateCard(idx, 'error', { error: err.message });
+          sessionItems[idx] = { name: item.file.name, label: '失败', error: err.message };
+        })
+        .finally(() => {
+          done++;
+          progressFill.style.width = Math.round(done/total*100) + '%';
+          progressLabel.textContent = `检测中 ${done} / ${total}`;
+        });
+    });
+
+    await Promise.all(tasks);
+
+    // 保存历史记录
+    saveHistory(sessionItems);
+
+    progressLabel.textContent = `全部完成 ${total} / ${total}`;
+    btn.disabled = false;
+    btn.innerHTML = '重新检测';
+  }
+
+  /* ===== 清空检测 ===== */
+  function clearAll() {
+    fileList.forEach(i => URL.revokeObjectURL(i.objectURL));
+    fileList = [];
+    document.getElementById('resultSection').style.display = 'none';
+    document.getElementById('resultGrid').innerHTML = '';
+    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('progressFill').style.width = '0%';
+    const btn = document.getElementById('detectBtn');
+    btn.disabled = false;
+    btn.innerHTML = '开始检测';
+  }
+
+  /* ===== 历史记录 Storage ===== */
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch(e) { return []; }
+  }
+
+  function saveHistory(items) {
+    if (!items.length) return;
+    const history = loadHistory();
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const timeStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    history.unshift({ id: Date.now(), time: timeStr, items });
+    if (history.length > MAX_SESSIONS) history.splice(MAX_SESSIONS);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+  }
+
+  function deleteSession(id) {
+    const history = loadHistory().filter(s => s.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    renderHistory();
+  }
+
+  function clearHistory() {
+    if (!confirm('确认清空所有历史记录？')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    renderHistory();
+  }
+
+  /* ===== 渲染历史记录 ===== */
+  function renderHistory() {
+    const history = loadHistory();
+    document.getElementById('historyCount').textContent = `共 ${history.length} 条记录`;
+    const container = document.getElementById('historyList');
+
+    if (!history.length) {
+      container.innerHTML = `<div class="history-empty"><div class="history-empty-icon">📭</div>暂无历史记录<br>完成一次检测后将自动保存</div>`;
+      return;
+    }
+
+    container.innerHTML = history.map((session, si) => {
+      const aiCount   = session.items.filter(i => i.label === 'AI生成').length;
+      const realCount = session.items.filter(i => i.label === '真实图片').length;
+      const summary   = `${session.items.length} 张 · AI生成 ${aiCount} · 真实图片 ${realCount}`;
+
+      const imgCards = session.items.map(item => {
+        const tagClass = item.label === 'AI生成' ? 'tag-ai' : (item.label === '真实图片' ? 'tag-real' : (item.error ? 'tag-error' : 'tag-pending'));
+        const aiBar  = item.aiPercent   || 0;
+        const reBar  = item.realPercent || 0;
+        return `<div class="history-img-card">
+          <div class="history-img-name" title="${item.name}">${item.name}</div>
+          <div class="history-tag-row"><span class="tag ${tagClass}">${item.label}</span></div>
+          <div class="mini-bar-group">
+            <div class="mini-bar-row"><span class="mini-bar-label">AI 生成</span><span class="mini-bar-val">${aiBar}%</span></div>
+            <div class="mini-bar-track"><div class="mini-bar-fill mini-bar-fill-ai" style="width:${aiBar}%"></div></div>
+          </div>
+          <div class="mini-bar-group">
+            <div class="mini-bar-row"><span class="mini-bar-label">真实图片</span><span class="mini-bar-val">${reBar}%</span></div>
+            <div class="mini-bar-track"><div class="mini-bar-fill mini-bar-fill-real" style="width:${reBar}%"></div></div>
+          </div>
+          ${item.error ? `<div class="card-err">⚠ ${item.error}</div>` : ''}
+        </div>`;
+      }).join('');
+
+      return `<div class="history-session">
+        <div class="history-session-header" onclick="toggleSession(${si})">
+          <div>
+            <div class="history-session-time">${session.time}</div>
+            <div class="history-session-summary">${summary}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="history-session-del" onclick="event.stopPropagation();deleteSession(${session.id})">删除</button>
+            <span class="session-toggle" id="toggle-${si}">▼</span>
+          </div>
+        </div>
+        <div class="session-body-wrap" id="session-body-${si}">
+          <div class="history-session-body">
+            <div class="history-img-row">${imgCards}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function toggleSession(si) {
+    const body   = document.getElementById('session-body-' + si);
+    const toggle = document.getElementById('toggle-' + si);
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    toggle.classList.toggle('open', !isOpen);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/history/history"
+  ],
+  "window": {
+    "navigationBarTitleText": "AI图片概率检测",
+    "navigationBarBackgroundColor": "#0a1a38",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#081225",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
